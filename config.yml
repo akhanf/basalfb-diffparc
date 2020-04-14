@@ -13,7 +13,8 @@ ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template
 
 
 template: hcp_dartel
-
+template_seg_dir: /project/6007967/sudesnac/HCP/diffparc_BF/work
+template_seg_nii: wthresholded50_stdMNI_Ch1_2_3_4_4pB_N10_nlin2StdMNI_binary.nii.gz
 
 seeds:
  - BF
@@ -23,6 +24,8 @@ hemis:
 
 #targets in subject native space
 targets_txt: cfg/hcp_mmp_360.txt
+targets_lut_in: cfg/hcpmmp_input.lut
+targets_lut_out: cfg/hcpmmp_output.lut
 targets_seg_dir: /project/6007967/sudesnac/HCP/diffparc_BF/work/
 targets_seg_bilat: sub-{subject}/labels/t1/HCPNATIVE/HCP-MMP1.nii.gz
 
@@ -35,7 +38,7 @@ max_k: 12
 
 #tractography parameters
 probtrack:
-    seed_resolution: 1.0
+    seed_resolution: 1.25
     nsamples: 5000
     opts: '--loopcheck --onewaycondition --cthr=0.2 --nsteps=2000 --steplength=0.5  --fibthresh=0.01 --distthresh=0.0 --sampvox=0.0 --forcedir --opd --os2t --randfib=2' 
 

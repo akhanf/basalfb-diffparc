@@ -33,38 +33,41 @@ wildcard_constraints:
 
 rule all:
     input: 
-        target_seg = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',seed=seeds,hemi=hemis,subject=subjects,template=config['template'],target=targets,allow_missing=True)
-        
-  #      clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
 
 
 
 rule import_targets:
-    input: join(config['targets_seg_dir'],config['targets_seg_bilat']),
-    output: 'diffparc/sub-{subject}/masks/lh_rh_targets_native.nii.gz'
-    envmodules: 'fsl'
+    input: 
+        in_seg = join(config['targets_seg_dir'],config['targets_seg_bilat']),
+        lut_in = config['targets_lut_in'],
+        lut_out = config['targets_lut_out']
+    output: 
+        out_seg = 'diffparc/sub-{subject}/masks/lh_rh_targets_native.nii.gz'
+    envmodules: 'mrtrix'
     singularity: config['singularity_neuroglia']
     log: 'logs/import_targets_hcp_mmp_sym/sub-{subject}.log'
     group: 'pre_track'
     shell:
-        'cp -v {input} {output} &> {log}'
-"""
+        'labelconvert  {input.in_seg} {input.lut_in} {input.lut_out} {output.out_seg} &> {log}'
+
+
 rule import_template_seed:
     input: join(config['template_seg_dir'],config['template_seg_nii'])
     output: 'diffparc/template_masks/sub-{template}_hemi-{hemi}_desc-{seed}_mask.nii.gz'
     log: 'logs/import_template_seed/{template}_{seed}_{hemi}.log'
     group: 'pre_track'
     shell: 'cp -v {input} {output} &> {log}'
-"""
 
 
 rule import_seed_subject:
     input: 
-        seed_nii = '/project/6007967/sudesnac/HCP/data/sub-{subject}/resNS_BfullBF50_sub-{subject}.nii.gz'
+        seed_nii = join(config['seed_seg_dir'],config['seed_seg_nii'])
     output:
-        seed_nii = 'diffparc/masks/sub-{subject}_bf_LR.nii.gz'
+        seed_nii = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}.nii.gz',
+    singularity: config['singularity_neuroglia']
     shell:
-        'cp {input} {output}'
+        'fslmaths {input} -thr 0.5 -bin {output}'
  
 
 rule resample_targets:
@@ -90,9 +93,9 @@ rule resample_seed:
         seed = rules.import_seed_subject.output,
         mask_res = 'diffparc/sub-{subject}/masks/brain_mask_dwi_resampled.nii.gz'
     output:
-        seed_res = 'diffparc/sub-{subject}/masks/seed_from-{template}_{seed}_{hemi}_resampled.nii.gz',
+        seed_res = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}_resampled.nii.gz',
     singularity: config['singularity_neuroglia']
-    log: 'logs/resample_seed/{template}_sub-{subject}_{seed}_{hemi}.log'
+    log: 'logs/resample_seed/sub-{subject}_{seed}_{hemi}.log'
     group: 'pre_track'
     shell:
         'reg_resample -flo {input.seed} -res {output.seed_res} -ref {input.mask_res} -NN 0 &> {log}'
@@ -142,7 +145,7 @@ rule run_probtrack:
         target_seg = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True)
     threads: 2
     resources: 
-        mem_mb = 64000, 
+        mem_mb = 32000, 
         time = 30, #30 mins
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
@@ -151,59 +154,42 @@ rule run_probtrack:
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
         '--dir={params.probtrack_dir} {params.probtrack_opts} -V 2  &> {log}'
 
-"""
+rule copy_ufile:
+    input:
+        ufile_nii = join(config['seed_seg_dir'],config['ufile_nii'])
+    output:
+        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/u_rc1msub-{subject}_to_template.nii',
+    shell: 'cp -v {input} {output}'
+
 rule prep_for_dartel_warp:
     input:
         connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',
-        ufile_nii = join(config['seed_seg_dir'],config['ufile_nii'])
     params:
         connmap_unzip_prefix = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_unzip',
     output:
         connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_unzip.nii',
-        ufile_nii = 'diffparc/sub-{subject}/u_rc1msub-{subject}_to_template.nii'
     shell:
-        'cp -v {input.connmap_3d} {params.connmap_unzip_prefix}_unzip.nii.gz &&'
-        'gunzip {params.connmap_unzip_prefix}_unzip.nii.gz &&'
-        'cp -v {input.ufile_nii} {output.ufile_nii}'
+        'cp -v {input.connmap_3d} {params.connmap_unzip_prefix}.nii.gz &&'
+        'gunzip {params.connmap_unzip_prefix}.nii.gz'
         
     
 rule transform_conn_to_template_dartel:
     input:
         connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_unzip.nii',
-        ufile_nii = 'diffparc/sub-{subject}/u_rc1msub-{subject}_to_template.nii'
+        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/u_rc1msub-{subject}_to_template.nii'
     output:
         connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/wseeds_to_{target}_unzip.nii',
     envmodules: 'matlab'
     log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}/{target}.log'
     group: 'post_track'
     shell:
-        'echo "warp_to_template(''{output.u_file}'',''{output.unzipped}'')    " | matlab -nodisplay -nosplash' 
+        'echo "warp_to_template(\'{input.ufile_nii}\',\'{input.connmap_3d}\')" | matlab -nodisplay -nosplash' 
 
-
-
-
-rule transform_conn_to_template:
-    input:
-        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True),
-        affine =  lambda wildcards: glob(join(config['ants_template_dir'],config['ants_affine_mat'].format(subject=wildcards.subject))),
-        warp =  lambda wildcards: glob(join(config['ants_template_dir'],config['ants_warp_nii'].format(subject=wildcards.subject))),
-        ref = join(config['ants_template_dir'],config['ants_ref_nii'])
-    output:
-        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_space-{template}.nii.gz',target=targets,allow_missing=True)
-    envmodules: 'ants'
-    singularity: config['singularity_neuroglia']
-    threads: 32
-    resources:
-        mem_mb = 16000
-    log: 'logs/transform_conn_to_template/sub-{subject}_{seed}_{hemi}_{template}.log'
-    group: 'post_track'
-    shell:
-        'ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=2 parallel  --jobs {threads} antsApplyTransforms -d 3 --interpolation Linear -i {{1}} -o {{2}}  -r {input.ref} -t {input.warp} -t {input.affine} &> {log} :::  {input.connmap_3d} :::+ {output.connmap_3d}' 
 
 
 rule save_connmap_template_npz:
-    input:
-        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_space-{template}.nii.gz',target=targets,allow_missing=True),
+    input:  
+        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/wseeds_to_{target}_unzip.nii',target=targets,allow_missing=True),
         mask = 'diffparc/template_masks/sub-{template}_hemi-{hemi}_desc-{seed}_mask.nii.gz'
     output:
         connmap_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
@@ -244,5 +230,3 @@ rule spectral_clustering:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
     script: 'scripts/spectral_clustering.py'
         
-"""     
-    
