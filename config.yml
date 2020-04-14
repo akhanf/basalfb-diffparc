@@ -1,0 +1,47 @@
+
+bids_dir: /project/6007967/akhanf/ext-bids/hcpUR100_3T/bids
+prepdwi_dir: /project/6007967/akhanf/ext-bids/hcpUR100_3T/deriv/1_fakeprepdwi
+
+
+
+#segmentations in subject native space:
+seed_seg_dir: /project/6007967/sudesnac/HCP/data
+seed_seg_nii: sub-{subject}/resNS_{hemi}full{seed}50_sub-{subject}.nii.gz
+ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template.nii
+
+#segmentation in template space for defining groupwise masks (should be same structure as seeds)
+
+
+template: hcp_dartel
+
+
+seeds:
+ - BF
+hemis:
+ - B
+
+
+#targets in subject native space
+targets_txt: cfg/hcp_mmp_360.txt
+targets_seg_dir: /project/6007967/sudesnac/HCP/diffparc_BF/work/
+targets_seg_bilat: sub-{subject}/labels/t1/HCPNATIVE/HCP-MMP1.nii.gz
+
+
+#fsl 6.0.1, ants; also:  mri_convert (from freesurfer) reg_resample (niftyreg) 
+singularity_neuroglia: /project/6007967/akhanf/singularity/bids-apps/khanlab_neuroglia-core_latest.sif 
+#singularity_neuroglia: docker://khanlab/neuroglia-core:latest  
+
+max_k: 12
+
+#tractography parameters
+probtrack:
+    seed_resolution: 1.0
+    nsamples: 5000
+    opts: '--loopcheck --onewaycondition --cthr=0.2 --nsteps=2000 --steplength=0.5  --fibthresh=0.01 --distthresh=0.0 --sampvox=0.0 --forcedir --opd --os2t --randfib=2' 
+
+
+enable_dropbox: False
+dropbox_token: ADD_LATER
+
+
+
