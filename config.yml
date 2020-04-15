@@ -23,7 +23,7 @@ hemis:
 
 
 #targets in subject native space
-targets_txt: cfg/hcp_mmp_360.txt
+targets_txt: cfg/hcpmmp_rois.txt
 targets_lut_in: cfg/hcpmmp_input.lut
 targets_lut_out: cfg/hcpmmp_output.lut
 targets_seg_dir: /project/6007967/sudesnac/HCP/diffparc_BF/work/

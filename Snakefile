@@ -179,11 +179,11 @@ rule transform_conn_to_template_dartel:
         ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/u_rc1msub-{subject}_to_template.nii'
     output:
         connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/wseeds_to_{target}_unzip.nii',
-    envmodules: 'matlab'
+    envmodules: 'matlab/2020a'
     log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}/{target}.log'
     group: 'post_track'
     shell:
-        'echo "warp_to_template(\'{input.ufile_nii}\',\'{input.connmap_3d}\')" | matlab -nodisplay -nosplash' 
+        'echo "warp_to_template(\'{input.ufile_nii}\',\'{input.connmap_3d}\'); exit;" | matlab -nodisplay -nosplash &> {log}'  
 
 
 

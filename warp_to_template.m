@@ -1,6 +1,6 @@
 function warp_to_template (u_file, in_img)
 
-addpath(genpath('/project/6007967/sudesnac/HCP/Tools/spm12'));
+addpath(genpath('/project/6007967/software/spm12'));
 
 matlabbatch{1}.spm.tools.dartel.crt_warped.flowfields = {u_file};
 matlabbatch{1}.spm.tools.dartel.crt_warped.images = {{in_img}};
