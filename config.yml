@@ -6,15 +6,15 @@ prepdwi_dir: /project/6007967/akhanf/ext-bids/hcpUR100_3T/deriv/1_fakeprepdwi
 
 #segmentations in subject native space:
 seed_seg_dir: /project/6007967/sudesnac/HCP/data
-seed_seg_nii: sub-{subject}/resNS_{hemi}full{seed}50_sub-{subject}.nii.gz
+seed_seg_nii: sub-{subject}/{hemi}_full{seed}50_sub-{subject}_bin.nii.gz
 ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template.nii
 
 #segmentation in template space for defining groupwise masks (should be same structure as seeds)
 
 
 template: hcp_dartel
-template_seg_dir: /project/6007967/sudesnac/HCP/diffparc_BF/work
-template_seg_nii: wthresholded50_stdMNI_Ch1_2_3_4_4pB_N10_nlin2StdMNI_binary.nii.gz
+template_seg_dir: /project/6007967/sudesnac/HCP/BF_ROIs/Zaborszky_2020_thresholded/HCPDARTELwarpped
+template_seg_nii: HCP_{hemi}_full{seed}_seed_temp.nii.gz
 
 seeds:
  - BF
