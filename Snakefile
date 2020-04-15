@@ -66,8 +66,7 @@ rule import_seed_subject:
     output:
         seed_nii = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}.nii.gz',
     singularity: config['singularity_neuroglia']
-    shell:
-        'fslmaths {input} -thr 0.5 -bin {output}'
+    shell: 'fslmaths {input} -thr 0.5 -bin {output}'
  
 
 rule resample_targets:
