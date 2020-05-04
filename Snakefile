@@ -162,10 +162,11 @@ rule transform_conn_to_template_dartel:
         ufile_nii = join(config['seed_seg_dir'],config['ufile_nii'])
     params:
         in_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True),
-        unzip_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/wseeds_to_{target}.nii',target=targets,allow_missing=True),
+        unzip_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/seeds_to_{target}.nii',target=targets,allow_missing=True),
         ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/u_rc1msub-{subject}_to_template.nii'
     output:
-        warped_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped')
+        warped_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'),
+        warping_done = touch('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done')
     envmodules: 'matlab/2020a'
     threads: 32
     resources:
@@ -173,14 +174,19 @@ rule transform_conn_to_template_dartel:
     log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}.log'
     group: 'post_track'
     shell:
-        'mkdir -p {output.warped_dir} && cp -v {params.in_connmap} {output.warped_dir} && gunzip {output.warped_dir}/*.gz && ' #copy the connmaps to the warped folder and unzip them
-        'cp -v {input.ufile_nii} {params.ufile_nii} && ' # cp the ufile to the warped folder (so that dartel warped images get placed there too)
-        'parallel --jobs {threads} echo "warp_to_template(\'{params.ufile_nii}\',\'{{1}}\'); exit;" | matlab -nodisplay -nosplash &> {log} ::: {params.in_connmap}' #run jobs in parallel using all 32 cores
+        'mkdir -p {output.warped_dir} && ' #create warped folder
+        'cp {params.in_connmap} {output.warped_dir}  && ' #copy connmaps to it
+        'gunzip {output.warped_dir}/*.gz  && ' #unzip them (dartel needs nii)
+        'cp {input.ufile_nii} {params.ufile_nii}  && ' # cp the ufile to the warped folder to force output folder
+        'parallel --jobs {threads} -q ' #gnu parallel using threads, -q is for quoting the command below
+        '  matlab -nodisplay -nosplash -r "warp_to_template(\'{params.ufile_nii}\',\'{{1}}\');" &>> {log}' #matlab cmd to run
+        '  ::: {params.unzip_connmap}' #loop over these (fills in {1})
 
 
 rule save_connmap_template_npz:
     input:  
         mask = 'diffparc/template_masks/sub-{template}_hemi-{hemi}_desc-{seed}_mask.nii.gz',
+        warping_done = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done',
         warped_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'
     params:
         connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/wseeds_to_{target}.nii',target=targets,allow_missing=True),
