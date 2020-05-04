@@ -9,7 +9,7 @@ configfile: 'config.yml'
 participants_tsv = join(config['bids_dir'],'participants.tsv')
 subjects_table = pd.read_table(participants_tsv)
 
-#get list of subjects based on seed_seg_dir
+#get list of subjects from subject list
 f = open('subjlist.txt','r')
 subjects = [line.strip() for line in f.readlines()]
 subjects = sorted(subjects)
@@ -25,7 +25,7 @@ f.close()
 #get seeds and hemis from config
 seeds = config['seeds']
 hemis = config['hemis']
-
+excrois = config['excrois']
 
 wildcard_constraints:
     subject="[a-zA-Z0-9]+"
@@ -67,6 +67,13 @@ rule import_seed_subject:
         seed_nii = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}.nii.gz'
     shell: 'cp -v {input} {output}'
  
+rule import_excrois_subject:
+    input:
+	    excroi_nii = join(config['seed_seg_dir'],config['excroi_nii'])
+    output: 
+	    excroi_nii = 'diffparc/sub-{subject}/masks/excroi_{excroi}.nii.gz'
+    log: 'logs/import_excrois_subject/sub-{subject}_{excroi}.log'
+    shell: 'cp -v {input} {output} &> {log}'
 
 rule resample_targets:
     input: 
@@ -98,8 +105,17 @@ rule resample_seed:
     shell:
         'reg_resample -flo {input.seed} -res {output.seed_res} -ref {input.mask_res} -NN 0 &> {log}'
 
-    
-    
+rule resample_excroi:
+    input:
+	    excroi = rules.import_excrois_subject.output,
+	    mask_res = 'diffparc/sub-{subject}/masks/brain_mask_dwi_resampled.nii.gz'
+    output:
+        excroi_res = 'diffparc/sub-{subject}/masks/excroi_{excroi}_resampled.nii.gz',
+    singularity: config['singularity_neuroglia']
+    log: 'logs/resample_excroi/sub-{subject}_{excroi}.log'
+    group: 'pre_track'
+    shell:
+        'reg_resample -flo {input.excroi} -res {output.excroi_res} -ref {input.mask_res} -NN 0 &> {log}'
 
 rule split_targets:
     input: 
@@ -132,6 +148,7 @@ rule gen_targets_txt:
 rule run_probtrack:
     input:
         seed_res = rules.resample_seed.output,
+	    excroi_res = rules.resample_excroi.output,
         target_txt = rules.gen_targets_txt.output,
         mask = 'diffparc/sub-{subject}/masks/brain_mask_dwi.nii.gz',
         target_seg = expand('diffparc/sub-{subject}/targets/{target}.nii.gz',target=targets,allow_missing=True)
@@ -150,7 +167,8 @@ rule run_probtrack:
     shell:
         'probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
-        '--dir={params.probtrack_dir} {params.probtrack_opts} -V 2  &> {log}'
+        '--dir={params.probtrack_dir} {params.probtrack_opts} -V 2'
+	    '--avoid={input.excroi_res}  &> {log}'
 
 rule copy_ufile:
     input:

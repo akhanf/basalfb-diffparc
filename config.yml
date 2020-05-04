@@ -7,6 +7,7 @@ prepdwi_dir: /project/6007967/akhanf/ext-bids/hcpUR100_3T/deriv/1_fakeprepdwi
 #segmentations in subject native space:
 seed_seg_dir: /project/6007967/sudesnac/HCP/data
 seed_seg_nii: sub-{subject}/{hemi}_full{seed}50_sub-{subject}_bin.nii.gz
+excroi_nii: sub-{subject}/AC_sub-{subject}.nii.gz
 ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template.nii
 
 #segmentation in template space for defining groupwise masks (should be same structure as seeds)
@@ -20,7 +21,9 @@ seeds:
  - BF
 hemis:
  - B
-
+excrois:
+ - AC
+# - BrStem
 
 #targets in subject native space
 targets_txt: cfg/hcpmmp_rois.txt
