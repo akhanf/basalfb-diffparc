@@ -72,8 +72,11 @@ rule import_excrois_subject:
 	    excroi_nii = join(config['seed_seg_dir'],config['excroi_nii'])
     output: 
 	    excroi_nii = 'diffparc/sub-{subject}/masks/excroi_{excroi}.nii.gz'
+        com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz'
     log: 'logs/import_excrois_subject/sub-{subject}_{excroi}.log'
-    shell: 'cp -v {input} {output} &> {log}'
+    shell: 'cp -v {input} {output.excroi_nii} &&'
+           'fslmaths {output.excroi_nii} -add {output.excroi_nii} {output.com_excrois} &> {log}'
+
 
 rule resample_targets:
     input: 
