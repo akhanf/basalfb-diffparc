@@ -28,7 +28,8 @@ hemis = config['hemis']
 
 
 wildcard_constraints:
-    subject="[a-zA-Z0-9]+"
+    subject="[a-zA-Z0-9]+",
+    template="[a-zA-Z0-9]+"
 
 
 rule all:
