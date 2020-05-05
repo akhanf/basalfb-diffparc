@@ -23,7 +23,7 @@ hemis:
  - B
 excrois:
  - AC
-# - BrStem
+ - BrStem
 
 #targets in subject native space
 targets_txt: cfg/hcpmmp_rois.txt
