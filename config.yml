@@ -13,7 +13,7 @@ ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template
 #segmentation in template space for defining groupwise masks (should be same structure as seeds)
 
 
-template: hcp_dartel
+template: hcpdartel
 template_seg_dir: /project/6007967/sudesnac/HCP/BF_ROIs/Zaborszky_2020_thresholded/HCPDARTELwarpped
 template_seg_nii: HCP_{hemi}_full{seed}_seed_temp.nii.gz
 
