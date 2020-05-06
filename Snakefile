@@ -72,8 +72,8 @@ rule import_excrois_subject:
     input:
         excroi_nii = expand(join(config['seed_seg_dir'],config['excroi_nii']),excroi=excrois,allow_missing=True)
     output: 
-        excroi_nii = expand('diffparc/sub-{subject}/masks/excroi_{excroi}.nii.gz',excroi=excrois,allow_missing=True),
-        combined_4d = 'diffparc/sub-{subject}/masks/excroi_merged.nii.gz',
+        excroi_nii = expand('diffparc/sub-{subject}/masks/excroi_{excroi}_{hemi}.nii.gz',excroi=excrois,allow_missing=True),
+        combined_4d = 'diffparc/sub-{subject}/masks/excroi_merged_{hemi}.nii.gz',
         com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz'
     log: 'logs/import_excrois_subject/sub-{subject}_{hemi}.log'
     shell: 
