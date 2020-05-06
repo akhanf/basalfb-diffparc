@@ -68,19 +68,16 @@ rule import_seed_subject:
         seed_nii = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}.nii.gz'
     shell: 'cp -v {input} {output}'
 
-rule import_excrois_subject:
+rule merge_excrois_subject:
     input:
         excroi_nii = expand(join(config['seed_seg_dir'],config['excroi_nii']),excroi=excrois,allow_missing=True)
-    output: 
-        excroi_nii = expand('diffparc/sub-{subject}/masks/excroi_{excroi}_{hemi}.nii.gz',excroi=excrois,allow_missing=True),
+    output:
         combined_4d = 'diffparc/sub-{subject}/masks/excroi_merged_{hemi}.nii.gz',
-        com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz'
-    log: 'logs/import_excrois_subject/sub-{subject}_{hemi}.log'
+        com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz' 
+    log: 'logs/merge_excrois_subject/sub-{subject}_{hemi}.log'
     shell: 
-        'cp -v {input} {output.excroi_nii} &&'
         'fslmerge -t {output.combined_4d} {input.excroi_nii} &&'
         'fslmaths {output.combined_4d} -Tmax {output.com_excrois} &> {log}'
-
 
 rule resample_targets:
     input: 
@@ -114,7 +111,7 @@ rule resample_seed:
 
 rule resample_excroi:
     input:
-        excroi = rules.import_excrois_subject.output,
+        excroi = rules.merge_excrois_subject.output,
         mask_res = 'diffparc/sub-{subject}/masks/brain_mask_dwi_resampled.nii.gz'
     output:
         excroi_res = 'diffparc/sub-{subject}/masks/excroi_{hemi}_resampled.nii.gz',
