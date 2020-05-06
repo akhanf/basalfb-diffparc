@@ -74,6 +74,7 @@ rule merge_excrois_subject:
     output:
         combined_4d = 'diffparc/sub-{subject}/masks/excroi_merged_{hemi}.nii.gz',
         com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz' 
+    singularity: config['singularity_neuroglia']
     log: 'logs/merge_excrois_subject/sub-{subject}_{hemi}.log'
     shell: 
         'fslmerge -t {output.combined_4d} {input.excroi_nii} &&'
