@@ -70,11 +70,11 @@ rule import_seed_subject:
 
 rule import_excrois_subject:
 	input:
-		excroi_nii = join(config['seed_seg_dir'],config['excroi_nii'])
+		excroi_nii = expand(join(config['seed_seg_dir'],config['excroi_nii']),excroi=excrois,allow_missing=True)
 	output: 
-		excroi_nii = 'diffparc/sub-{subject}/masks/excroi_{excroi}.nii.gz',
+		excroi_nii = expand('diffparc/sub-{subject}/masks/excroi_{excroi}.nii.gz',excroi=excrois,allow_missing=True)
 		com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz'
-	log: 'logs/import_excrois_subject/sub-{subject}_{excroi}_{hemi}.log'
+	log: 'logs/import_excrois_subject/sub-{subject}_{hemi}.log'
 	shell: 
 		'cp -v {input} {output.excroi_nii} &&'
 		'for roi in {output.excroi_nii[roi]}:do fslmaths {output.excroi_nii[roi]} -add {output.excroi_nii[roi]} {output.com_excrois}; done &> {log}'
