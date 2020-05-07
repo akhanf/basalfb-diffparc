@@ -46,7 +46,7 @@ rule import_targets:
     output: 
         out_seg = 'diffparc/sub-{subject}/masks/lh_rh_targets_native.nii.gz'
     envmodules: 'mrtrix'
-    singularity: config['singularity_neuroglia']
+    singularity: '/project/6007967/akhanf/singularity/bids-apps/khanlab_neuroglia-dwi_v1.3.1.img'
     log: 'logs/import_targets_hcp_mmp_sym/sub-{subject}.log'
     group: 'pre_track'
     shell:
