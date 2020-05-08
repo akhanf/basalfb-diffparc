@@ -35,6 +35,7 @@ template="[a-zA-Z0-9]+"
 rule all:
     input: 
         clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+    group: 'map'
 
 
 
@@ -66,6 +67,7 @@ rule import_seed_subject:
         seed_nii = join(config['seed_seg_dir'],config['seed_seg_nii'])
     output:
         seed_nii = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}.nii.gz'
+    group: 'pre_track'
     shell: 'cp -v {input} {output}'
 
 rule merge_excrois_subject:
@@ -76,6 +78,7 @@ rule merge_excrois_subject:
         com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz' 
     singularity: config['singularity_neuroglia']
     log: 'logs/merge_excrois_subject/sub-{subject}_{hemi}.log'
+    group: 'pre_track'
     shell: 
         'fslmerge -t {output.combined_4d} {input.excroi_nii} &&'
         'fslmaths {output.combined_4d} -Tmax {output.com_excrois} &> {log}'
@@ -172,6 +175,7 @@ rule run_probtrack:
         time = 30, #30 mins
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
+    group: 'post_track'
     shell:
         'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
@@ -224,6 +228,7 @@ rule gather_connmap_group:
     output:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}.log'
+    group: 'map'
     run:
         import numpy as np
 
@@ -249,5 +254,6 @@ rule spectral_clustering:
         max_k = config['max_k']
     output:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
+    group: 'map'
     script: 'scripts/spectral_clustering.py'
 
