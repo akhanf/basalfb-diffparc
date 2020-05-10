@@ -115,7 +115,7 @@ rule resample_seed:
 
 rule resample_excroi:
     input:
-        excroi = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz',
+        excroi = rules.merge_excrois_subject.output.com_excrois,
         mask_res = 'diffparc/sub-{subject}/masks/brain_mask_dwi_resampled.nii.gz'
     output:
         excroi_res = 'diffparc/sub-{subject}/masks/excroi_{hemi}_resampled.nii.gz',
