@@ -254,6 +254,8 @@ rule spectral_clustering:
         max_k = config['max_k']
     output:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
+    resources:
+        mem_mb = 128000
     group: 'map'
     script: 'scripts/spectral_clustering.py'
 
