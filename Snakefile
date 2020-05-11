@@ -75,7 +75,7 @@ rule merge_excrois_subject:
         excroi_nii = expand(join(config['seed_seg_dir'],config['excroi_nii']),excroi=excrois,allow_missing=True)
     output:
         combined_4d = 'diffparc/sub-{subject}/masks/excroi_merged_{hemi}.nii.gz',
-        com_excrois = 'diffparc/sub-{subject}/masks/excroi_{hemi}.nii.gz' 
+        com_excrois = 'diffparc/sub-{subject}/masks/com_excroi_{hemi}.nii.gz' 
     singularity: config['singularity_neuroglia']
     log: 'logs/merge_excrois_subject/sub-{subject}_{hemi}.log'
     group: 'pre_track'
