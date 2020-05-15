@@ -26,6 +26,7 @@ f.close()
 seeds = config['seeds']
 hemis = config['hemis']
 excrois = config['excrois']
+midrois = config['midrois']
 
 wildcard_constraints:
 subject="[a-zA-Z0-9]+",
@@ -34,7 +35,7 @@ template="[a-zA-Z0-9]+"
 
 rule all:
     input: 
-        clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_midroi-{midroi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,midroi=midrois,template=config['template'],k=range(2,config['max_k']+1))
     group: 'map'
 
 
@@ -83,6 +84,15 @@ rule merge_excrois_subject:
         'fslmerge -t {output.combined_4d} {input.excroi_nii} &&'
         'fslmaths {output.combined_4d} -Tmax {output.com_excrois} &> {log}'
 
+rule import_midrois_subject:
+    input:
+        midroi_nii = join(config['seed_seg_dir'],config['midway_nii'])
+    output:
+        midroi_nii = 'diffparc/sub-{subject}/masks/seed_{midroi}_{hemi}.nii.gz'
+    log: 'logs/import_midrois_subject/{subject}_{midroi}_{hemi}.log'
+    group:'pre_track'
+    shell: 'cp -v {input} {output} &> {log}'
+
 rule resample_targets:
     input: 
         dwi = join(config['prepdwi_dir'],'bedpost','sub-{subject}','mean_S0samples.nii.gz'),
@@ -125,6 +135,18 @@ rule resample_excroi:
     shell:
         'reg_resample -flo {input.excroi} -res {output.excroi_res} -ref {input.mask_res} -NN 0 &> {log}'
 
+rule resample_midroi:
+    input:
+        midroi = rules.import_midrois_subject.output,
+        mask_res = 'diffparc/sub-{subject}/masks/brain_mask_dwi_resampled.nii.gz'
+    output:
+        midroi_res = 'diffparc/sub-{subject}/masks/midroi_{midroi}_{hemi}_resampled.nii.gz'
+    singularity: config['singularity_neuroglia']
+    log: 'logs/resample_midroi/sub-{subject}_{midroi}_{hemi}.log'
+    group: 'pre_track'
+    shell:
+        'reg_resample -flo {input.midroi} -res {output.midroi_res} -ref {input.mask_res} -NN 0 &> {log}'
+
 rule split_targets:
     input: 
         targets = 'diffparc/sub-{subject}/masks/lh_rh_targets_dwi.nii.gz',
@@ -160,6 +182,7 @@ rule run_probtrack:
     input:
         seed_res = rules.resample_seed.output,
         excroi_res = rules.resample_excroi.output,
+        midroi_res = rules.resample_midroi.output,
         target_txt = rules.gen_targets_txt.output,
         mask = 'diffparc/sub-{subject}/masks/brain_mask_dwi.nii.gz',
         target_seg_dir = 'diffparc/sub-{subject}/targets'
@@ -168,36 +191,37 @@ rule run_probtrack:
         probtrack_opts = config['probtrack']['opts'],
         out_target_seg = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True)
     output:
-        probtrack_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}'),
+        probtrack_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}'),
+    #singularity: '/project/6007967/akhanf/singularity/bids-apps/khanlab_diffparc-sumo_latest.img'
     threads: 2
     resources: 
         mem_mb = 32000, 
         time = 30, #30 mins
         gpus = 1 #1 gpu
-    log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
+    log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}_{midroi}.log'
     group: 'post_track'
     shell:
         'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
-        '--avoid={input.excroi_res} '
+        '--avoid={input.excroi_res} --waypoints {input.midroi_res} '
         '--dir={output.probtrack_dir} {params.probtrack_opts} -V 2 &> {log}'
 
 rule transform_conn_to_template_dartel:
     input:
-        connmap_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}',
+        connmap_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}',
         ufile_nii = join(config['seed_seg_dir'],config['ufile_nii'])
     params:
-        in_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True),
-        unzip_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/seeds_to_{target}.nii',target=targets,allow_missing=True),
-        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/u_rc1msub-{subject}_to_template.nii'
+        in_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True),
+        unzip_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped/seeds_to_{target}.nii',target=targets,allow_missing=True),
+        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped/u_rc1msub-{subject}_to_template.nii'
     output:
-        warped_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'),
-        warping_done = touch('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done')
+        warped_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped'),
+        warping_done = touch('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped.done')
     envmodules: 'matlab/2020a'
     threads: 32
     resources:
         mem_mb = 128000
-    log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}.log'
+    log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}_{midroi}.log'
     group: 'post_track'
     shell:
         'mkdir -p {output.warped_dir} && ' #create warped folder
@@ -212,22 +236,22 @@ rule transform_conn_to_template_dartel:
 rule save_connmap_template_npz:
     input:  
         mask = 'diffparc/template_masks/sub-{template}_hemi-{hemi}_desc-{seed}_mask.nii.gz',
-        warping_done = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done',
-        warped_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'
+        warping_done = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped.done',
+        warped_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped'
     params:
-        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/wseeds_to_{target}.nii',target=targets,allow_missing=True),
+        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}_warped/wseeds_to_{target}.nii',target=targets,allow_missing=True),
     output:
-        connmap_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
-    log: 'logs/save_connmap_to_template_npz/sub-{subject}_{seed}_{hemi}_{template}.log'
+        connmap_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_midroi-{midroi}_connMap.npz'
+    log: 'logs/save_connmap_to_template_npz/sub-{subject}_{seed}_{hemi}_{template}_{midroi}.log'
     group: 'post_track'
     script: 'scripts/save_connmap_template_npz.py'
 
 rule gather_connmap_group:
     input:
-        connmap_npz = expand('diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',subject=subjects,allow_missing=True)
+        connmap_npz = expand('diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_midroi-{midroi}_connMap.npz',subject=subjects,allow_missing=True)
     output:
-        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
-    log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}.log'
+        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_midroi-{midroi}_connMap.npz'
+    log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}_{midroi}.log'
     group: 'map'
     run:
         import numpy as np
@@ -249,11 +273,11 @@ rule gather_connmap_group:
 
 rule spectral_clustering:
     input:
-        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
+        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_midroi-{midroi}_connMap.npz'
     params:
         max_k = config['max_k']
     output:
-        cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
+        cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_midroi-{midroi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
     resources:
         mem_mb = 128000
     group: 'map'
