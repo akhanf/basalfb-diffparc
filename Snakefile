@@ -28,7 +28,8 @@ hemis = config['hemis']
 
 
 wildcard_constraints:
-    subject="[a-zA-Z0-9]+"
+    subject="[a-zA-Z0-9]+",
+    template="[a-zA-Z0-9]+"
 
 
 rule all:
@@ -105,18 +106,21 @@ rule split_targets:
     input: 
         targets = 'diffparc/sub-{subject}/masks/lh_rh_targets_dwi.nii.gz',
     params:
-        target_nums = lambda wildcards: [str(i) for i in range(len(targets))]
-    output:
+        target_nums = lambda wildcards: [str(i) for i in range(len(targets))],
         target_seg = expand('diffparc/sub-{subject}/targets/{target}.nii.gz',target=targets,allow_missing=True)
+    output:
+        target_seg_dir = directory('diffparc/sub-{subject}/targets')
     singularity: config['singularity_neuroglia']
     log: 'logs/split_targets/sub-{subject}.log'
     threads: 32 
     group: 'pre_track'
     shell:
-        'parallel  --jobs {threads} fslmaths {input.targets} -thr {{1}} -uthr {{1}} -bin {{2}} &> {log} ::: {params.target_nums} :::+ {output.target_seg}'
+        'mkdir -p {output} && parallel  --jobs {threads} fslmaths {input.targets} -thr {{1}} -uthr {{1}} -bin {{2}} &> {log} ::: {params.target_nums} :::+ {params.target_seg}'
 
 rule gen_targets_txt:
     input:
+        target_seg_dir = 'diffparc/sub-{subject}/targets'
+    params:
         target_seg = expand('diffparc/sub-{subject}/targets/{target}.nii.gz',target=targets,allow_missing=True)
     output:
         target_txt = 'diffparc/sub-{subject}/target_images.txt'
@@ -124,7 +128,7 @@ rule gen_targets_txt:
     group: 'pre_track'
     run:
         f = open(output.target_txt,'w')
-        for s in input.target_seg:
+        for s in params.target_seg:
             f.write(f'{s}\n')
         f.close()
 
@@ -134,13 +138,13 @@ rule run_probtrack:
         seed_res = rules.resample_seed.output,
         target_txt = rules.gen_targets_txt.output,
         mask = 'diffparc/sub-{subject}/masks/brain_mask_dwi.nii.gz',
-        target_seg = expand('diffparc/sub-{subject}/targets/{target}.nii.gz',target=targets,allow_missing=True)
+        target_seg_dir = 'diffparc/sub-{subject}/targets'
     params:
         bedpost_merged = join(config['prepdwi_dir'],'bedpost','sub-{subject}','merged'),
         probtrack_opts = config['probtrack']['opts'],
-        probtrack_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}'
+        out_target_seg = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True)
     output:
-        target_seg = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True)
+        probtrack_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}'),
     threads: 2
     resources: 
         mem_mb = 32000, 
@@ -148,47 +152,44 @@ rule run_probtrack:
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
     shell:
-        'probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
+        'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
-        '--dir={params.probtrack_dir} {params.probtrack_opts} -V 2  &> {log}'
+        '--dir={output.probtrack_dir} {params.probtrack_opts} -V 2  &> {log}'
 
-rule copy_ufile:
-    input:
-        ufile_nii = join(config['seed_seg_dir'],config['ufile_nii'])
-    output:
-        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/u_rc1msub-{subject}_to_template.nii',
-    shell: 'cp -v {input} {output}'
-
-rule prep_for_dartel_warp:
-    input:
-        connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',
-    params:
-        connmap_unzip_prefix = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_unzip',
-    output:
-        connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_unzip.nii',
-    shell:
-        'cp -v {input.connmap_3d} {params.connmap_unzip_prefix}.nii.gz &&'
-        'gunzip {params.connmap_unzip_prefix}.nii.gz'
-        
-    
 rule transform_conn_to_template_dartel:
     input:
-        connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}_unzip.nii',
-        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/u_rc1msub-{subject}_to_template.nii'
+        connmap_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}',
+        ufile_nii = join(config['seed_seg_dir'],config['ufile_nii'])
+    params:
+        in_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True),
+        unzip_connmap = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/seeds_to_{target}.nii',target=targets,allow_missing=True),
+        ufile_nii = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/u_rc1msub-{subject}_to_template.nii'
     output:
-        connmap_3d = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/wseeds_to_{target}_unzip.nii',
+        warped_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'),
+        warping_done = touch('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done')
     envmodules: 'matlab/2020a'
-    log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}/{target}.log'
+    threads: 32
+    resources:
+        mem_mb = 128000
+    log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}.log'
     group: 'post_track'
     shell:
-        'echo "warp_to_template(\'{input.ufile_nii}\',\'{input.connmap_3d}\'); exit;" | matlab -nodisplay -nosplash &> {log}'  
-
+        'mkdir -p {output.warped_dir} && ' #create warped folder
+        'cp {params.in_connmap} {output.warped_dir}  && ' #copy connmaps to it
+        'gunzip {output.warped_dir}/*.gz  && ' #unzip them (dartel needs nii)
+        'cp {input.ufile_nii} {params.ufile_nii}  && ' # cp the ufile to the warped folder to force output folder
+        'parallel --jobs {threads} -q ' #gnu parallel using threads, -q is for quoting the command below
+        '  matlab -nodisplay -nosplash -r "warp_to_template(\'{params.ufile_nii}\',\'{{1}}\');" &>> {log}' #matlab cmd to run
+        '  ::: {params.unzip_connmap}' #loop over these (fills in {1})
 
 
 rule save_connmap_template_npz:
     input:  
-        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/wseeds_to_{target}_unzip.nii',target=targets,allow_missing=True),
-        mask = 'diffparc/template_masks/sub-{template}_hemi-{hemi}_desc-{seed}_mask.nii.gz'
+        mask = 'diffparc/template_masks/sub-{template}_hemi-{hemi}_desc-{seed}_mask.nii.gz',
+        warping_done = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done',
+        warped_dir = 'diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'
+    params:
+        connmap_3d = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped/wseeds_to_{target}.nii',target=targets,allow_missing=True),
     output:
         connmap_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/save_connmap_to_template_npz/sub-{subject}_{seed}_{hemi}_{template}.log'
