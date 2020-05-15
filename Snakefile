@@ -192,18 +192,19 @@ rule run_probtrack:
         out_target_seg = expand('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}/seeds_to_{target}.nii.gz',target=targets,allow_missing=True)
     output:
         probtrack_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_{midroi}'),
-    #singularity: '/project/6007967/akhanf/singularity/bids-apps/khanlab_diffparc-sumo_latest.img'
     threads: 2
     resources: 
         mem_mb = 32000, 
         time = 30, #30 mins
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}_{midroi}.log'
-    group: 'post_track'
+    group: 'track'
     shell:
-        'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
+        'mkdir -p {output.probtrack_dir} && '
+        '/project/6007967/software/probtrackx2_gpu_fsl6_cuda_10.0/probtrackx2_gpu '
+        '--samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
-        '--avoid={input.excroi_res} --waypoints {input.midroi_res} '
+        '--avoid={input.excroi_res} --waypoints={input.midroi_res} --waycond=OR '
         '--dir={output.probtrack_dir} {params.probtrack_opts} -V 2 &> {log}'
 
 rule transform_conn_to_template_dartel:
