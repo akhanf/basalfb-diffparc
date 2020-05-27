@@ -46,7 +46,7 @@ rule import_targets:
     output: 
         out_seg = 'diffparc/sub-{subject}/masks/lh_rh_targets_native.nii.gz'
     envmodules: 'mrtrix'
-    singularity: config['singularity_neuroglia']
+    singularity: config['singularity_prepdwi']
     log: 'logs/import_targets_hcp_mmp_sym/sub-{subject}.log'
     group: 'pre_track'
     shell:
@@ -194,6 +194,7 @@ rule save_connmap_template_npz:
         connmap_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/save_connmap_to_template_npz/sub-{subject}_{seed}_{hemi}_{template}.log'
     group: 'post_track'
+    conda: 'envs/sklearn.yml'
     script: 'scripts/save_connmap_template_npz.py'
 
 rule gather_connmap_group:
@@ -202,29 +203,15 @@ rule gather_connmap_group:
     output:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}.log'
-    run:
-        import numpy as np
-        
-        #load first file to get shape
-        data = np.load(input['connmap_npz'][0])
-        affine = data['affine']
-        mask = data['mask']
-        conn_shape = data['conn'].shape
-        nsubjects = len(input['connmap_npz'])
-        conn_group = np.zeros([nsubjects,conn_shape[0],conn_shape[1]])
-        
-        for i,npz in enumerate(input['connmap_npz']):
-            data = np.load(npz)
-            conn_group[i,:,:] = data['conn']
-            
-        #save conn_group, mask and affine
-        np.savez(output['connmap_group_npz'], conn_group=conn_group,mask=mask,affine=affine)
+    conda: 'envs/sklearn.yml'
+    script: 'scripts/gather_connmap_group.py'
      
 rule spectral_clustering:
     input:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     params:
         max_k = config['max_k']
+    conda: 'envs/sklearn.yml'
     output:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
     script: 'scripts/spectral_clustering.py'
