@@ -38,7 +38,7 @@ wildcard_constraints:
 rule all:
     input: 
         clusters_group = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1)),
-        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',subject=subjects,seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',subject=subjects_indiv,seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
 
 
 
@@ -203,7 +203,7 @@ rule save_connmap_template_npz:
 
 rule gather_connmap_group:
     input:
-        connmap_npz = expand('diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',subject=subjects,allow_missing=True)
+        connmap_npz = expand('diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',subject=subjects_group,allow_missing=True)
     output:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}.log'
