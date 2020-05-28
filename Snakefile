@@ -38,7 +38,7 @@ wildcard_constraints:
 rule all:
     input: 
         clusters_group = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1)),
-        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',subject=subjects,seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
 
 
 
