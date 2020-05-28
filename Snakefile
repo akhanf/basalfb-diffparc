@@ -9,12 +9,15 @@ configfile: 'config.yml'
 participants_tsv = join(config['bids_dir'],'participants.tsv')
 subjects_table = pd.read_table(participants_tsv)
 
-#get list of subjects based on seed_seg_dir
+#subjects to generate clusters:
 f = open('subjlist.txt','r')
 subjects = [line.strip() for line in f.readlines()]
 subjects = sorted(subjects)
 f.close()
 
+#use first half for groupwise clustering, and second half to apply to individuals
+subjects_group = subjects[0:int(len(subjects)/2)]
+subjects_indiv = subjects[int(len(subjects)/2):]
 
 
 #get list of ROIs
@@ -34,7 +37,8 @@ wildcard_constraints:
 
 rule all:
     input: 
-        clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        clusters_group = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1)),
+        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
 
 
 
@@ -215,4 +219,20 @@ rule spectral_clustering:
     output:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
     script: 'scripts/spectral_clustering.py'
-        
+       
+
+rule apply_clustering_indiv:
+    input:
+        connmap_indiv_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',
+        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
+    params:
+        k = '{k}'
+    output:
+        cluster_k_indiv = 'diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',
+        centroid_plot = 'diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png'
+    conda: 'envs/sklearn.yml'
+    script: 'scripts/apply_clustering_indiv.py'
+
+
+
+
