@@ -9,7 +9,7 @@ configfile: 'config.yml'
 participants_tsv = join(config['bids_dir'],'participants.tsv')
 subjects_table = pd.read_table(participants_tsv)
 
-#get list of subjects based on seed_seg_dir
+#get list of subjects from subject list
 f = open('subjlist.txt','r')
 subjects = [line.strip() for line in f.readlines()]
 subjects = sorted(subjects)
@@ -25,16 +25,17 @@ f.close()
 #get seeds and hemis from config
 seeds = config['seeds']
 hemis = config['hemis']
-
+excrois = config['excrois']
 
 wildcard_constraints:
-    subject="[a-zA-Z0-9]+",
-    template="[a-zA-Z0-9]+"
+subject="[a-zA-Z0-9]+",
+template="[a-zA-Z0-9]+"
 
 
 rule all:
     input: 
         clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+    group: 'map'
 
 
 
@@ -46,7 +47,7 @@ rule import_targets:
     output: 
         out_seg = 'diffparc/sub-{subject}/masks/lh_rh_targets_native.nii.gz'
     envmodules: 'mrtrix'
-    singularity: config['singularity_neuroglia']
+    singularity: '/project/6007967/akhanf/singularity/bids-apps/khanlab_neuroglia-dwi_v1.3.1.img'
     log: 'logs/import_targets_hcp_mmp_sym/sub-{subject}.log'
     group: 'pre_track'
     shell:
@@ -66,8 +67,21 @@ rule import_seed_subject:
         seed_nii = join(config['seed_seg_dir'],config['seed_seg_nii'])
     output:
         seed_nii = 'diffparc/sub-{subject}/masks/seed_{seed}_{hemi}.nii.gz'
+    group: 'pre_track'
     shell: 'cp -v {input} {output}'
- 
+
+rule merge_excrois_subject:
+    input:
+        excroi_nii = expand(join(config['seed_seg_dir'],config['excroi_nii']),excroi=excrois,allow_missing=True)
+    output:
+        combined_4d = 'diffparc/sub-{subject}/masks/excroi_merged_{hemi}.nii.gz',
+        com_excrois = 'diffparc/sub-{subject}/masks/com_excroi_{hemi}.nii.gz' 
+    singularity: config['singularity_neuroglia']
+    log: 'logs/merge_excrois_subject/sub-{subject}_{hemi}.log'
+    group: 'pre_track'
+    shell: 
+        'fslmerge -t {output.combined_4d} {input.excroi_nii} &&'
+        'fslmaths {output.combined_4d} -Tmax {output.com_excrois} &> {log}'
 
 rule resample_targets:
     input: 
@@ -99,8 +113,17 @@ rule resample_seed:
     shell:
         'reg_resample -flo {input.seed} -res {output.seed_res} -ref {input.mask_res} -NN 0 &> {log}'
 
-    
-    
+rule resample_excroi:
+    input:
+        excroi = rules.merge_excrois_subject.output.com_excrois,
+        mask_res = 'diffparc/sub-{subject}/masks/brain_mask_dwi_resampled.nii.gz'
+    output:
+        excroi_res = 'diffparc/sub-{subject}/masks/excroi_{hemi}_resampled.nii.gz',
+    singularity: config['singularity_neuroglia']
+    log: 'logs/resample_excroi/sub-{subject}_{hemi}.log'
+    group: 'pre_track'
+    shell:
+        'reg_resample -flo {input.excroi} -res {output.excroi_res} -ref {input.mask_res} -NN 0 &> {log}'
 
 rule split_targets:
     input: 
@@ -136,6 +159,7 @@ rule gen_targets_txt:
 rule run_probtrack:
     input:
         seed_res = rules.resample_seed.output,
+        excroi_res = rules.resample_excroi.output,
         target_txt = rules.gen_targets_txt.output,
         mask = 'diffparc/sub-{subject}/masks/brain_mask_dwi.nii.gz',
         target_seg_dir = 'diffparc/sub-{subject}/targets'
@@ -151,10 +175,12 @@ rule run_probtrack:
         time = 30, #30 mins
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
+    group: 'post_track'
     shell:
         'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
-        '--dir={output.probtrack_dir} {params.probtrack_opts} -V 2  &> {log}'
+        '--avoid={input.excroi_res} '
+        '--dir={output.probtrack_dir} {params.probtrack_opts} -V 2 &> {log}'
 
 rule transform_conn_to_template_dartel:
     input:
@@ -202,9 +228,10 @@ rule gather_connmap_group:
     output:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}.log'
+    group: 'map'
     run:
         import numpy as np
-        
+
         #load first file to get shape
         data = np.load(input['connmap_npz'][0])
         affine = data['affine']
@@ -212,14 +239,14 @@ rule gather_connmap_group:
         conn_shape = data['conn'].shape
         nsubjects = len(input['connmap_npz'])
         conn_group = np.zeros([nsubjects,conn_shape[0],conn_shape[1]])
-        
+
         for i,npz in enumerate(input['connmap_npz']):
             data = np.load(npz)
             conn_group[i,:,:] = data['conn']
-            
+
         #save conn_group, mask and affine
         np.savez(output['connmap_group_npz'], conn_group=conn_group,mask=mask,affine=affine)
-     
+
 rule spectral_clustering:
     input:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
@@ -227,5 +254,8 @@ rule spectral_clustering:
         max_k = config['max_k']
     output:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
+    resources:
+        mem_mb = 128000
+    group: 'map'
     script: 'scripts/spectral_clustering.py'
-        
+
