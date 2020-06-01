@@ -229,7 +229,9 @@ rule apply_clustering_indiv:
         k = '{k}'
     output:
         cluster_k_indiv = 'diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',
-        centroid_plot = 'diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png'
+        centroid_plot = 'diffparc/plots/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png',
+        cort_profiles_npz = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.npz',
+        cort_profiles_mat = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.mat'
     conda: 'envs/sklearn.yml'
     script: 'scripts/apply_clustering_indiv.py'
 

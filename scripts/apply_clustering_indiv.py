@@ -69,5 +69,14 @@ print('shape of indiv_labels: {}'.format(indiv_labels.shape))
 
 save_label_nii(indiv_labels,mask,affine,out_nii)
 
+#for cortical profiles, generate the average profile for each label:
+cort_profiles = np.zeros([k,conn_indiv.shape[1]])
 
+for label in range(k):
+    cort_profiles[label,:] = np.mean( conn_indiv[indiv_labels ==  label,:],0)
+
+np.savez(snakemake.output.cort_profiles_npz,cort_profiles=cort_profiles)
+
+from scipy.io import savemat
+savemat(snakemake.output.cort_profiles_mat,{'cort_profiles': cort_profiles})
 
