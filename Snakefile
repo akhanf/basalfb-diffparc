@@ -178,7 +178,7 @@ rule run_probtrack:
         time = 30, #30 mins
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
-    group: 'post_track'
+    group: 'track'
     shell:
         'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
@@ -261,6 +261,7 @@ rule apply_clustering_indiv:
         centroid_plot = 'diffparc/plots/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png',
         cort_profiles_npz = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.npz',
         cort_profiles_mat = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.mat'
+    group: 'clust_ind'
     conda: 'envs/sklearn.yml'
     script: 'scripts/apply_clustering_indiv.py'
 
