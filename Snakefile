@@ -132,7 +132,7 @@ rule split_targets:
     input: 
         targets = 'diffparc/sub-{subject}/masks/lh_rh_targets_dwi.nii.gz',
     params:
-        target_nums = lambda wildcards: [str(i) for i in range(len(targets))],
+        target_nums = lambda wildcards: [str(i) for i in range(1,len(targets)+1)],
         target_seg = expand('diffparc/sub-{subject}/targets/{target}.nii.gz',target=targets,allow_missing=True)
     output:
         target_seg_dir = directory('diffparc/sub-{subject}/targets')
