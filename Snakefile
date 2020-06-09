@@ -38,7 +38,7 @@ template="[a-zA-Z0-9]+"
 rule all:
     input: 
         clusters_group = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1)),
-        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',subject=subjects_indiv,seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}',subject=subjects_indiv,seed=seeds,hemi=hemis,template=config['template'])
 
 
 
@@ -255,12 +255,15 @@ rule apply_clustering_indiv:
         connmap_indiv_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     params:
-        k = '{k}'
+        out_file_prefix = 'sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine',
+        max_k = config['max_k']
     output:
-        cluster_k_indiv = 'diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',
-        centroid_plot = 'diffparc/plots/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png',
-        cort_profiles_npz = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.npz',
-        cort_profiles_mat = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.mat'
+        cluster_indiv_dir = directory('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}'),
+        cort_profiles_dir = directory('diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}'),
+#sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',
+#        centroid_plot = 'diffparc/plots/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png',
+#        cort_profiles_npz = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.npz',
+ #       cort_profiles_mat = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.mat'
     group: 'clust_ind'
     conda: 'envs/sklearn.yml'
     script: 'scripts/apply_clustering_indiv.py'
