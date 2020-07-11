@@ -35,6 +35,10 @@ targets_seg_bilat: sub-{subject}/labels/t1/HCPNATIVE/HCP-MMP1.nii.gz
 
 #fsl 6.0.1, ants; also:  mri_convert (from freesurfer) reg_resample (niftyreg) 
 singularity_neuroglia: /project/6007967/akhanf/singularity/bids-apps/khanlab_neuroglia-core_latest.sif 
+
+#contains mrtrix 3.0RC3
+singularity_prepdwi: /project/6007967/akhanf/singularity/bids-apps/khanlab_prepdwi_latest.sif
+
 #singularity_neuroglia: docker://khanlab/neuroglia-core:latest  
 
 max_k: 12

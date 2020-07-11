@@ -9,12 +9,15 @@ configfile: 'config.yml'
 participants_tsv = join(config['bids_dir'],'participants.tsv')
 subjects_table = pd.read_table(participants_tsv)
 
-#get list of subjects from subject list
+#subjects to generate clusters:
 f = open('subjlist.txt','r')
 subjects = [line.strip() for line in f.readlines()]
 subjects = sorted(subjects)
 f.close()
 
+#use first half for groupwise clustering, and second half to apply to individuals
+subjects_group = subjects[0:int(len(subjects)/2)]
+subjects_indiv = subjects[int(len(subjects)/2):]
 
 
 #get list of ROIs
@@ -34,8 +37,8 @@ template="[a-zA-Z0-9]+"
 
 rule all:
     input: 
-        clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
-    group: 'map'
+        clusters_group = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1)),
+        cluster_indiv = expand('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}',subject=subjects_indiv,seed=seeds,hemi=hemis,template=config['template'])
 
 
 
@@ -47,7 +50,7 @@ rule import_targets:
     output: 
         out_seg = 'diffparc/sub-{subject}/masks/lh_rh_targets_native.nii.gz'
     envmodules: 'mrtrix'
-    singularity: '/project/6007967/akhanf/singularity/bids-apps/khanlab_neuroglia-dwi_v1.3.1.img'
+    singularity: config['singularity_prepdwi']
     log: 'logs/import_targets_hcp_mmp_sym/sub-{subject}.log'
     group: 'pre_track'
     shell:
@@ -129,7 +132,7 @@ rule split_targets:
     input: 
         targets = 'diffparc/sub-{subject}/masks/lh_rh_targets_dwi.nii.gz',
     params:
-        target_nums = lambda wildcards: [str(i) for i in range(len(targets))],
+        target_nums = lambda wildcards: [str(i) for i in range(1,len(targets)+1)],
         target_seg = expand('diffparc/sub-{subject}/targets/{target}.nii.gz',target=targets,allow_missing=True)
     output:
         target_seg_dir = directory('diffparc/sub-{subject}/targets')
@@ -175,7 +178,7 @@ rule run_probtrack:
         time = 30, #30 mins
         gpus = 1 #1 gpu
     log: 'logs/run_probtrack/{template}_sub-{subject}_{seed}_{hemi}.log'
-    group: 'post_track'
+    group: 'track'
     shell:
         'mkdir -p {output.probtrack_dir} && probtrackx2_gpu --samples={params.bedpost_merged}  --mask={input.mask} --seed={input.seed_res} ' 
         '--targetmasks={input.target_txt} --seedref={input.seed_res} --nsamples={config[''probtrack''][''nsamples'']} ' 
@@ -220,42 +223,50 @@ rule save_connmap_template_npz:
         connmap_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/save_connmap_to_template_npz/sub-{subject}_{seed}_{hemi}_{template}.log'
     group: 'post_track'
+    conda: 'envs/sklearn.yml'
     script: 'scripts/save_connmap_template_npz.py'
 
 rule gather_connmap_group:
     input:
-        connmap_npz = expand('diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',subject=subjects,allow_missing=True)
+        connmap_npz = expand('diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',subject=subjects_group,allow_missing=True)
     output:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     log: 'logs/gather_connmap_group/{seed}_{hemi}_{template}.log'
+    conda: 'envs/sklearn.yml'
     group: 'map'
-    run:
-        import numpy as np
-
-        #load first file to get shape
-        data = np.load(input['connmap_npz'][0])
-        affine = data['affine']
-        mask = data['mask']
-        conn_shape = data['conn'].shape
-        nsubjects = len(input['connmap_npz'])
-        conn_group = np.zeros([nsubjects,conn_shape[0],conn_shape[1]])
-
-        for i,npz in enumerate(input['connmap_npz']):
-            data = np.load(npz)
-            conn_group[i,:,:] = data['conn']
-
-        #save conn_group, mask and affine
-        np.savez(output['connmap_group_npz'], conn_group=conn_group,mask=mask,affine=affine)
-
+    script: 'scripts/gather_connmap_group.py'
+    
 rule spectral_clustering:
     input:
         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
     params:
         max_k = config['max_k']
+    conda: 'envs/sklearn.yml'
     output:
         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
     resources:
         mem_mb = 128000
     group: 'map'
     script: 'scripts/spectral_clustering.py'
+       
+
+rule apply_clustering_indiv:
+    input:
+        connmap_indiv_npz = 'diffparc/sub-{subject}/connmap/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',
+        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
+    params:
+        out_file_prefix = 'sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine',
+        max_k = config['max_k']
+    output:
+        cluster_indiv_dir = directory('diffparc/clustering_indiv/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}'),
+        cort_profiles_dir = directory('diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}'),
+#sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',
+#        centroid_plot = 'diffparc/plots/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_centroids.png',
+#        cort_profiles_npz = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.npz',
+ #       cort_profiles_mat = 'diffparc/clustering_indiv_cort_profiles/sub-{subject}_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cortprofiles.mat'
+    group: 'clust_ind'
+    conda: 'envs/sklearn.yml'
+    script: 'scripts/apply_clustering_indiv.py'
+
+
 
