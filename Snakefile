@@ -34,7 +34,7 @@ template="[a-zA-Z0-9]+"
 
 rule all:
     input: 
-        clusters = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',seed=seeds,hemi=hemis,template=config['template'],k=range(2,config['max_k']+1))
+        connmap_group = expand('diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz',seed=seeds,hemi=hemis,template=config['template'])
     group: 'map'
 
 
@@ -247,15 +247,15 @@ rule gather_connmap_group:
         #save conn_group, mask and affine
         np.savez(output['connmap_group_npz'], conn_group=conn_group,mask=mask,affine=affine)
 
-rule spectral_clustering:
-    input:
-        connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
-    params:
-        max_k = config['max_k']
-    output:
-        cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
-    resources:
-        mem_mb = 128000
-    group: 'map'
-    script: 'scripts/spectral_clustering.py'
+# rule spectral_clustering:
+#     input:
+#         connmap_group_npz = 'diffparc/connmap/group_space-{template}_seed-{seed}_hemi-{hemi}_connMap.npz'
+#     params:
+#         max_k = config['max_k']
+#     output:
+#         cluster_k = expand('diffparc/clustering/group_space-{template}_seed-{seed}_hemi-{hemi}_method-spectralcosine_k-{k}_cluslabels.nii.gz',k=range(2,config['max_k']+1),allow_missing=True)
+#     resources:
+#         mem_mb = 128000
+#     group: 'map'
+#     script: 'scripts/spectral_clustering.py'
 

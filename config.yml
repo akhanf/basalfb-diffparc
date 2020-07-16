@@ -5,8 +5,8 @@ prepdwi_dir: /project/6007967/akhanf/ext-bids/hcpUR100_3T/deriv/1_fakeprepdwi
 
 
 #segmentations in subject native space:
-seed_seg_dir: /project/6007967/sudesnac/HCP/data
-seed_seg_nii: sub-{subject}/{hemi}_full{seed}50_sub-{subject}_bin.nii.gz
+seed_seg_dir: /project/6050199/sudesnac/HCP/data
+seed_seg_nii: sub-{subject}/{hemi}_{seed}50_sub-{subject}_bin.nii.gz
 excroi_nii: sub-{subject}/{excroi}_sub-{subject}.nii.gz
 ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template.nii
 
@@ -14,11 +14,16 @@ ufile_nii: sub-{subject}/u_rc1msub-{subject}_acq-procHCP_T1w_HCP3TUR100_template
 
 
 template: hcpdartel
-template_seg_dir: /project/6007967/sudesnac/HCP/BF_ROIs/Zaborszky_2020_thresholded/HCPDARTELwarpped
+template_seg_dir: /project/6050199/sudesnac/HCP/BF_ROIs/Zaborszky_2020_thresholded/HCPDARTELwarpped
 template_seg_nii: HCP_{hemi}_full{seed}_seed_temp.nii.gz
 
 seeds:
- - BF
+ - fullBF
+ - Ch12
+ - Ch123
+ - Ch3
+ - Ch4
+ - Ch4p
 hemis:
  - B
 excrois:
