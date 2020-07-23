@@ -194,9 +194,9 @@ rule transform_conn_to_template_dartel:
         warped_dir = directory('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped'),
         warping_done = touch('diffparc/sub-{subject}/probtrack_{template}_{seed}_{hemi}_warped.done')
     envmodules: 'matlab/2020a'
-    threads: 32
+    threads: 4
     resources:
-        mem_mb = 128000
+        mem_mb = 64000
     log: 'logs/transform_conn_to_template_dartel/sub-{subject}_{seed}_{hemi}_{template}.log'
     group: 'post_track'
     shell:
